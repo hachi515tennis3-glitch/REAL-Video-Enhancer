@@ -37,6 +37,41 @@ jobs:
           echo "  - workflow_dispatch on refs/heads/v2-main"
           echo "Got: event=$event ref=$ref"
           exit 1
+      - uses: actions/checkout@v4
+      - name: Validate release version metadata
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import re
+
+          app_version = "${{ env.APP_VERSION }}"
+          root = pathlib.Path(".")
+
+          src_version_text = (root / "src" / "version.py").read_text(encoding="utf-8")
+          backend_version_text = (root / "backend" / "src" / "version.py").read_text(encoding="utf-8")
+          nsi_text = (root / "REAL-Video-Enhancer.nsi").read_text(encoding="utf-8")
+
+          src_match = re.search(r'^version = "([^"]+)"$', src_version_text, re.MULTILINE)
+          backend_match = re.search(r'^__version__ = "([^"]+)"', backend_version_text, re.MULTILINE)
+          nsi_match = re.search(r'!define VERSION "([^"]+)"', nsi_text)
+
+          if not src_match or not backend_match or not nsi_match:
+              raise SystemExit("Unable to parse version metadata from source files.")
+
+          src_version = src_match.group(1)
+          backend_version = backend_match.group(1)
+          nsi_version = nsi_match.group(1)
+
+          if src_version != app_version:
+              raise SystemExit(f"src/version.py mismatch: {src_version} != {app_version}")
+          if nsi_version != app_version:
+              raise SystemExit(f"REAL-Video-Enhancer.nsi mismatch: {nsi_version} != {app_version}")
+          if backend_version.split("-dev", 1)[0] != app_version:
+              raise SystemExit(f"backend/src/version.py mismatch: {backend_version} is not aligned with {app_version}")
+
+          print("Release version metadata is aligned.")
+          PY
 
   test:
     needs: [validate]
