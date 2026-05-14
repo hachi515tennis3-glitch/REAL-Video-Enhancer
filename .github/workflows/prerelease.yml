@@ -82,8 +82,7 @@ jobs:
               raise SystemExit(f"backend/src/version.py mismatch: {backend_version} is not aligned with {app_version}")
 
           if event_name == "release":
-              normalized_tag = re.sub(r"[^0-9.]", "", release_tag)
-              if normalized_tag != app_version:
+              if release_tag not in {app_version, f"RVE-{app_version}", f"v{app_version}"}:
                   raise SystemExit(f"release tag mismatch: {release_tag} != {app_version}")
 
           print("Release version metadata is aligned.")
@@ -375,12 +374,17 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          name: REAL-Video-Enhancer-${{ env.APP_VERSION }}-Windows-portable_x86_64.zip
+          path: release-assets
+      - uses: actions/download-artifact@v4
+        with:
+          name: REAL-Video-Enhancer-${{ env.APP_VERSION }}-Windows-Setup_x86_64.exe
+          path: release-assets
       - name: Upload Windows assets to published release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.release.tag_name }}
           overwrite_files: true
           files: |
-            artifacts/REAL-Video-Enhancer-${{ env.APP_VERSION }}-Windows-portable_x86_64.zip/REAL-Video-Enhancer-${{ env.APP_VERSION }}-Windows-portable_x86_64.zip
-            artifacts/REAL-Video-Enhancer-${{ env.APP_VERSION }}-Windows-Setup_x86_64.exe/REAL-Video-Enhancer-${{ env.APP_VERSION }}-Windows-Setup_x86_64.exe
+            release-assets/*.zip
+            release-assets/*.exe
