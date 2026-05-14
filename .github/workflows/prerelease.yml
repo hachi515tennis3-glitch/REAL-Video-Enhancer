@@ -4,6 +4,9 @@ on:
   pull_request:
     branches:
       - v2-main
+  release:
+    types:
+      - published
   workflow_dispatch:
 
 env:
@@ -32,8 +35,14 @@ jobs:
             exit 0
           fi
 
+          if [[ "$event" == "release" ]]; then
+            echo "OK: release event"
+            exit 0
+          fi
+
           echo "ERROR: This workflow is only allowed on:"
           echo "  - pull_request"
+          echo "  - release"
           echo "  - workflow_dispatch on refs/heads/v2-main"
           echo "Got: event=$event ref=$ref"
           exit 1
@@ -46,6 +55,8 @@ jobs:
           import re
 
           app_version = "${{ env.APP_VERSION }}"
+          event_name = "${{ github.event_name }}"
+          release_tag = "${{ github.event.release.tag_name }}"
           root = pathlib.Path(".")
 
           src_version_text = (root / "src" / "version.py").read_text(encoding="utf-8")
@@ -70,6 +81,11 @@ jobs:
           if backend_version.split("-dev", 1)[0] != app_version:
               raise SystemExit(f"backend/src/version.py mismatch: {backend_version} is not aligned with {app_version}")
 
+          if event_name == "release":
+              normalized_tag = re.sub(r"[^0-9.]", "", release_tag)
+              if normalized_tag != app_version:
+                  raise SystemExit(f"release tag mismatch: {release_tag} != {app_version}")
+
           print("Release version metadata is aligned.")
           PY
 
@@ -89,6 +105,7 @@ jobs:
         run: python -m pytest tests/unit_tests/ -v
 
   build-Linux:
+    if: github.event_name != 'release'
     needs: [validate, test]
     runs-on: ubuntu-latest
     permissions: write-all  
@@ -139,6 +156,7 @@ jobs:
           path: backend-v${{ env.APP_VERSION }}.tar.gz 
 
   build-Linux_arm64:
+    if: github.event_name != 'release'
     needs: [validate, test]
     runs-on: ubuntu-24.04-arm
     permissions: write-all  
@@ -223,6 +241,7 @@ jobs:
           path: REAL-Video-Enhancer-${{ env.APP_VERSION }}-Windows-Setup_x86_64.exe
 
   build-MacOS_x86_64:
+    if: github.event_name != 'release'
     needs: [validate, test]
     runs-on: macos-13
     permissions: write-all  
@@ -258,6 +277,7 @@ jobs:
           path: REAL-Video-Enhancer-${{ env.APP_VERSION }}-MacOS_x86_64.zip
 
   build-MacOS_arm64:
+    if: github.event_name != 'release'
     needs: [validate, test]
     runs-on: macos-14
 
@@ -294,6 +314,7 @@ jobs:
           path: REAL-Video-Enhancer-${{ env.APP_VERSION }}-MacOS_arm64.zip
           
   Release:
+    if: github.event_name != 'release'
     needs: [build-Windows, build-Linux, build-MacOS_arm64, build-Linux_arm64, build-MacOS_x86_64]
     runs-on: ubuntu-latest
     permissions:
@@ -344,3 +365,22 @@ jobs:
               artifacts/REAL-Video-Enhancer-${{ env.APP_VERSION }}-MacOS_arm64.zip/REAL-Video-Enhancer-${{ env.APP_VERSION }}-MacOS_arm64.zip
               io.github.tntwise.REAL-Video-Enhancer.flatpakref
               artifacts/backend-v${{ env.APP_VERSION }}.tar.gz/backend-v${{ env.APP_VERSION }}.tar.gz
+
+  Attach-release-assets:
+    if: github.event_name == 'release'
+    needs: [build-Windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Upload Windows assets to published release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          overwrite_files: true
+          files: |
+            artifacts/REAL-Video-Enhancer-${{ env.APP_VERSION }}-Windows-portable_x86_64.zip/REAL-Video-Enhancer-${{ env.APP_VERSION }}-Windows-portable_x86_64.zip
+            artifacts/REAL-Video-Enhancer-${{ env.APP_VERSION }}-Windows-Setup_x86_64.exe/REAL-Video-Enhancer-${{ env.APP_VERSION }}-Windows-Setup_x86_64.exe
