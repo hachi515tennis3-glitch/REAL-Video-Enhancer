@@ -3,7 +3,7 @@ name: build-prerelease
 on:
   pull_request:
     branches:
-      - main
+      - v2-main
   workflow_dispatch:
 
 env:
@@ -27,14 +27,14 @@ jobs:
             exit 0
           fi
 
-          if [[ "$event" == "workflow_dispatch" && "$ref" == "refs/heads/dev" ]]; then
-            echo "OK: manual dispatch on dev"
+          if [[ "$event" == "workflow_dispatch" && "$ref" == "refs/heads/v2-main" ]]; then
+            echo "OK: manual dispatch on v2-main"
             exit 0
           fi
 
           echo "ERROR: This workflow is only allowed on:"
           echo "  - pull_request"
-          echo "  - workflow_dispatch on refs/heads/dev"
+          echo "  - workflow_dispatch on refs/heads/v2-main"
           echo "Got: event=$event ref=$ref"
           exit 1
 
@@ -174,7 +174,7 @@ jobs:
 
   build-MacOS_x86_64:
     needs: [validate]
-    runs-on: macos-15-intel
+    runs-on: macos-13
     permissions: write-all  
     steps:
 
@@ -249,23 +249,19 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v3
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
       - name: Generate version and tag
         id: version_tag
         run: |
-          git clone https://github.com/tntwise/real-video-enhancer --branch dev
-          cp real-video-enhancer/CHANGELOG.md .
-          version=$(python -c "from datetime import datetime; print(str(datetime.now()).split(' ')[0].replace('-',''))")
-          tag=$(python -c "import random, string; print(''.join(random.choices(string.ascii_letters, k=8)))")
-          python3 real-video-enhancer/scripts/printchangelog.py > RELEASE_BODY.md
-          cat real-video-enhancer/EXTRA_NOTES.md >> RELEASE_BODY.md
+          version=$(python3 -c "from datetime import datetime; print(str(datetime.now()).split(' ')[0].replace('-',''))")
+          python3 scripts/printchangelog.py > RELEASE_BODY.md
+          cat EXTRA_NOTES.md >> RELEASE_BODY.md
           echo "Version=$version"
-          echo "Tag=$version"
-          echo "Body=$body"
-          echo "::set-output name=version::$version"
-          echo "::set-output name=tag::$version"
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "tag=$version" >> $GITHUB_OUTPUT
           
       #- name: Compute SHA256 checksums
       #  run: |
