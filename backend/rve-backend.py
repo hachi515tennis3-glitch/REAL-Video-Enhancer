@@ -23,15 +23,26 @@ class HandleApplication:
                 self.ffmpeg_path = self.args.ffmpeg_path
 
             from src.utils.VideoInfo import OpenCVInfo, print_video_info
+            is_png_sequence_input = "%" in self.args.print_video_info if self.args.print_video_info else "%" in self.args.input
             
             if self.args.print_video_info:
-                video_info = OpenCVInfo(self.args.print_video_info, ffmpeg_path=self.ffmpeg_path)
+                video_info = OpenCVInfo(
+                    self.args.print_video_info,
+                    ffmpeg_path=self.ffmpeg_path,
+                    input_is_png_sequence=is_png_sequence_input,
+                    input_png_sequence_start_number=self.args.input_png_sequence_start_number,
+                )
                 print_video_info(video_info)
                 #profiler.stop()
                 #print(profiler.output_text(unicode=True, color=True))
                 sys.exit(0)
             else:
-                video_info = OpenCVInfo(self.args.input, ffmpeg_path=self.ffmpeg_path)
+                video_info = OpenCVInfo(
+                    self.args.input,
+                    ffmpeg_path=self.ffmpeg_path,
+                    input_is_png_sequence=self.args.input_is_png_sequence,
+                    input_png_sequence_start_number=self.args.input_png_sequence_start_number,
+                )
                 print_video_info(video_info)
                 
             
@@ -169,6 +180,9 @@ class HandleApplication:
             trt_optimization_level=self.args.tensorrt_opt_profile,
             trt_dynamic_shapes=self.args.tensorrt_dynamic_shapes,
             override_upscale_scale=self.args.override_upscale_scale,
+            ffmpeg_downscale_to_original=self.args.ffmpeg_downscale_to_original,
+            input_is_png_sequence=self.args.input_is_png_sequence,
+            input_png_sequence_start_number=self.args.input_png_sequence_start_number,
             UHD_mode=self.args.UHD_mode,
             drba=False,
             slomo_mode=self.args.slomo_mode,
@@ -497,6 +511,24 @@ class HandleApplication:
             type=str,
             default=None,
         )
+        parser.add_argument(
+            "--input_is_png_sequence",
+            help="Treat input as a sequential PNG image pattern.",
+            action="store_true",
+            default=False,
+        )
+        parser.add_argument(
+            "--input_png_sequence_start_number",
+            help="Starting frame number for PNG sequence input.",
+            type=int,
+            default=1,
+        )
+        parser.add_argument(
+            "--ffmpeg_downscale_to_original",
+            help="Downscale ffmpeg output back to original input resolution after model upscale.",
+            action="store_true",
+            default=False,
+        )
         # append extra args
         return parser.parse_args()
 
@@ -511,7 +543,7 @@ class HandleApplication:
             and not self.args.benchmark
         ):
             raise os.error("Output file already exists!")
-        if "http" not in self.args.input:
+        if "http" not in self.args.input and not self.args.input_is_png_sequence:
             if not os.path.isfile(self.args.input):
                 raise os.error("Input file does not exist!")
         if self.args.tilesize < 0:
@@ -526,6 +558,10 @@ class HandleApplication:
             raise ValueError(
                 "Interpolation factor must be 1 if no interpolation model is used.\nPlease use --interpolateFactor 1 for no interpolation!"
             )
+        if self.args.input_is_png_sequence and "%" not in self.args.input:
+            raise ValueError("PNG sequence input must be an ffmpeg pattern path (for example frame%04d.png).")
+        if self.args.input_png_sequence_start_number < 0:
+            raise ValueError("PNG sequence start number must be greater than or equal to 0.")
         if self.args.backend == 'ncnn' and self.args.hdr_mode:
             print("WARNING: HDR mode is not supported with ncnn backend, falling back to SDR",file=sys.stderr)
             self.args.hdr_mode = False            

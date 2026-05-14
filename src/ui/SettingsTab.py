@@ -462,7 +462,7 @@ class Settings:
             "ncnn_gpu_id": "ANY",
             "pytorch_gpu_id": "ANY",
             "auto_border_cropping": ("True", "False"),
-            "video_container": ("mkv", "mp4", "mov", "webm", "avi"),
+            "video_container": ("mkv", "mp4", "mov", "webm", "avi", "png"),
             "video_pixel_format": "ANY",
             "pytorch_version": ("2.9.0", "2.8.0", "2.6.0"),
             "pytorch_backend": "ANY",

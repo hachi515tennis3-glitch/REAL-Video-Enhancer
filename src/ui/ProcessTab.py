@@ -129,6 +129,7 @@ class ProcessTab:
         )
         self.parent.inputFileSelectButton.clicked.connect(self.parent.openInputFile)
         self.parent.batchSelectButton.clicked.connect(self.parent.openBatchFiles)
+        self.parent.pngSequenceSelectButton.clicked.connect(self.parent.openPNGSequenceFolder)
         self.parent.inputFileText.textChanged.connect(self.parent.loadVideo)
         self.parent.outputFileSelectButton.clicked.connect(self.parent.openOutputFolder)
         self.parent.openOutputFolderButton.clicked.connect(self.openOutputFolderInExplorer)
@@ -152,6 +153,7 @@ class ProcessTab:
         self.parent.upscaleScaleSpinBox.valueChanged.connect(
             self.parent.updateVideoGUIDetails
         )
+        self.parent.ffmpegDownscaleTo1xCheckBox.clicked.connect(self.parent.updateVideoGUIDetails)
         self.parent.interpolateModelComboBox.currentIndexChanged.connect(
             self.parent.updateVideoGUIDetails
         )
@@ -557,6 +559,18 @@ class ProcessTab:
                 modelPath,
             ]
             command += ["--override_upscale_scale", f"{renderOptions.overrideUpscaleScale}"]
+        
+        if renderOptions.inputIsPNGSequence:
+            command += [
+                "--input_is_png_sequence",
+                "--input_png_sequence_start_number",
+                f"{renderOptions.inputPNGSequenceStartNumber}",
+            ]
+        
+        if renderOptions.ffmpegDownscaleTo1x:
+            command += [
+                "--ffmpeg_downscale_to_original",
+            ]
             
         if renderOptions.tilingEnabled:
             command += [

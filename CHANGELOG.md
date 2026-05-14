@@ -1,3 +1,9 @@
+# RVE 2.4.2
+### Added
+ - PNG sequence folder input support.
+ - PNG sequence output container support.
+ - FFmpeg downscale-to-1x output option after upscaling.
+
 # RVE 2.4.1
 ### Fixed
  - Sudo scene detect models on non-nvidia gpus.
@@ -206,5 +212,4 @@
  - Updated PyTorch to 2.6.0.dev20241023
  - Updated TensorRT to 10.6
  - Naming scheme of upscaling models, should be easier to understand
-
 

@@ -3,6 +3,7 @@ from typing import List
 import subprocess
 import re
 import cv2
+import os
 from typing import Optional
 import sys
 
@@ -141,8 +142,10 @@ class FFMpegInfoWrapper(VideoInfo):
 
     def get_duration_seconds(self) -> float:
         total_duration:float = 0.0
-
-        duration = re.search(r"duration: (.*?),", self.ffmpeg_output_stripped).groups()[0]
+        duration_match = re.search(r"duration: (.*?),", self.ffmpeg_output_stripped)
+        if not duration_match:
+            return 0.0
+        duration = duration_match.groups()[0]
         hours, minutes, seconds = duration.split(":")
         total_duration += int(int(hours) * 3600)
         total_duration += int(int(minutes) * 60)
@@ -157,7 +160,10 @@ class FFMpegInfoWrapper(VideoInfo):
         return [int(width), int(height)]
 
     def get_fps(self) -> float:
-        fps = re.search(r"(\d+\.?\d*) fps", self.ffmpeg_output_stripped).groups()[0]
+        fps_match = re.search(r"(\d+\.?\d*) fps", self.ffmpeg_output_stripped)
+        if not fps_match:
+            return 0.0
+        fps = fps_match.groups()[0]
         return float(fps)
     
     def check_color_opt(self, color_opt:str) -> str | None:
@@ -239,25 +245,46 @@ class FFMpegInfoWrapper(VideoInfo):
 
 
 class OpenCVInfo(VideoInfo):
-    def __init__(self, input_file: str, start_time: Optional[float] = None, end_time: Optional[float] = None, ffmpeg_path: str = "./bin/ffmpeg"):
+    def __init__(self, input_file: str, start_time: Optional[float] = None, end_time: Optional[float] = None, ffmpeg_path: str = "./bin/ffmpeg", input_is_png_sequence: bool = False, input_png_sequence_start_number: int = 1):
         log("Getting Input Video Properties")
         self.input_file = input_file
         self.start_time = start_time
         self.end_time = end_time
-        self.cap = cv2.VideoCapture(input_file)
+        self.input_is_png_sequence = input_is_png_sequence
+        self.input_png_sequence_start_number = input_png_sequence_start_number
+        self.cap = None if input_is_png_sequence else cv2.VideoCapture(input_file)
         self.ffmpeg_info = FFMpegInfoWrapper(input_file, ffmpeg_path=ffmpeg_path)
+        self.png_sequence_total_frames = self._count_png_sequence_frames() if input_is_png_sequence else None
+        if input_is_png_sequence:
+            fallback_frames = int(self.ffmpeg_info.get_total_frames())
+            self.base_total_frames = self.png_sequence_total_frames if self.png_sequence_total_frames and self.png_sequence_total_frames > 0 else fallback_frames
+
+    def _count_png_sequence_frames(self) -> int:
+        pattern = re.search(r"(.*)%0\d+d(.+)$", self.input_file)
+        if not pattern:
+            return 0
+        prefix, suffix = pattern.groups()
+        directory = os.path.dirname(prefix)
+        file_prefix = os.path.basename(prefix)
+        if not os.path.isdir(directory):
+            return 0
+        count = 0
+        for file_name in os.listdir(directory):
+            if file_name.lower().endswith(".png") and file_name.startswith(file_prefix) and file_name.endswith(suffix):
+                count += 1
+        return count
 
     def is_valid_video(self):
-        #frame_count = self.cap.get(cv2.CAP_PROP_FRAME_COUNT)
-        #log(f"Frame count: {frame_count}")
-        #if frame_count <= 1:
-        #    log("Invalid video: Frame count is less than or equal to 1.")
-        #    return False
-        
+        if self.input_is_png_sequence:
+            return self.get_total_frames() > 1 and self.get_width_x_height()[0] > 0
         return self.cap.isOpened() and self.cap.get(cv2.CAP_PROP_FRAME_COUNT) 
 
     def get_duration_seconds(self) -> float:
-        duration = self.cap.get(cv2.CAP_PROP_FRAME_COUNT) / self.get_fps()
+        if self.input_is_png_sequence:
+            fps = self.get_fps()
+            duration = self.base_total_frames / fps if fps else 0
+        else:
+            duration = self.cap.get(cv2.CAP_PROP_FRAME_COUNT) / self.get_fps()
 
         if self.start_time is not None and self.end_time is not None:
             duration = self.end_time - self.start_time
@@ -268,19 +295,30 @@ class OpenCVInfo(VideoInfo):
         return duration
 
     def get_total_frames(self) -> int:
-        
-        if self.start_time or self.end_time:
+        if self.input_is_png_sequence:
+            fc = self.base_total_frames
+            if self.start_time is not None or self.end_time is not None:
+                start = self.start_time if self.start_time is not None else 0
+                end = self.end_time if self.end_time is not None else (fc / self.get_fps() if self.get_fps() else 0)
+                duration = max(0, end - start)
+                fc = int(duration * self.get_fps())
+        elif self.start_time or self.end_time:
             fc = int(self.get_duration_seconds() * self.get_fps())
         else:
             fc =  int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
         return fc
 
     def get_width_x_height(self) -> List[int]:
+        if self.input_is_png_sequence:
+            return self.ffmpeg_info.get_width_x_height()
         res = [int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))]
         return res
 
 
     def get_fps(self) -> float:
+        if self.input_is_png_sequence:
+            fps = self.ffmpeg_info.get_fps()
+            return fps if fps else 25
         fps = self.cap.get(cv2.CAP_PROP_FPS)
         return fps
     
@@ -310,7 +348,8 @@ class OpenCVInfo(VideoInfo):
     
 
     def __del__(self):
-        self.cap.release()
+        if self.cap is not None:
+            self.cap.release()
 
 def print_video_info(video_info: VideoInfo):
     print(f"Duration: {video_info.get_duration_seconds()} seconds")

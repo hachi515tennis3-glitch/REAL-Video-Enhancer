@@ -34,6 +34,9 @@ class RenderOptions:
         isPreview: bool = False,
         overrideUpscaleScale: int | None = None,
         encoderCommand: str | None = None,
+        inputIsPNGSequence: bool = False,
+        inputPNGSequenceStartNumber: int = 1,
+        ffmpegDownscaleTo1x: bool = False,
     ):
         self._inputFile = inputFile
         self._outputPath = outputPath
@@ -63,6 +66,9 @@ class RenderOptions:
         self._isPreview = isPreview
         self._overrideUpscaleScale = overrideUpscaleScale
         self._encoderCommand = encoderCommand
+        self._inputIsPNGSequence = inputIsPNGSequence
+        self._inputPNGSequenceStartNumber = inputPNGSequenceStartNumber
+        self._ffmpegDownscaleTo1x = ffmpegDownscaleTo1x
 
     @property
     def inputFile(self):
@@ -286,6 +292,27 @@ class RenderOptions:
     @encoderCommand.setter
     def encoderCommand(self, value: str):
         self._encoderCommand = value
+    
+    @property
+    def inputIsPNGSequence(self):
+        return self._inputIsPNGSequence
+    @inputIsPNGSequence.setter
+    def inputIsPNGSequence(self, value: bool):
+        self._inputIsPNGSequence = value
+    
+    @property
+    def inputPNGSequenceStartNumber(self):
+        return self._inputPNGSequenceStartNumber
+    @inputPNGSequenceStartNumber.setter
+    def inputPNGSequenceStartNumber(self, value: int):
+        self._inputPNGSequenceStartNumber = value
+    
+    @property
+    def ffmpegDownscaleTo1x(self):
+        return self._ffmpegDownscaleTo1x
+    @ffmpegDownscaleTo1x.setter
+    def ffmpegDownscaleTo1x(self, value: bool):
+        self._ffmpegDownscaleTo1x = value
         
         
 
