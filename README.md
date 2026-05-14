@@ -59,6 +59,9 @@
   <li> Scene change detection to preserve sharp transitions. </li>
   <li> Preview that shows latest frame that has been rendered. </li>
   <li> TensorRT and NCNN for efficient inference across many GPUs. </li>
+  <li> <strong>PNG sequence folder input:</strong> Process numbered PNG frames (e.g. <code>frame%04d.png</code>) directly as input using ffmpeg. Select a folder via the dedicated "PNG Sequence" button in the UI, or pass a pattern path on the CLI with <code>--input_is_png_sequence</code>. </li>
+  <li> <strong>PNG sequence output:</strong> Save processed frames as numbered PNGs by choosing <code>png</code> as the output container in Settings. </li>
+  <li> <strong>Downscale to 1x after upscale:</strong> When upscaling (e.g. 2x), optionally use <code>-vf scale</code> via ffmpeg to downscale the result back to the original resolution. Useful for getting higher-quality output at the same resolution. Enable via the "Downscale to 1x" checkbox in the UI or <code>--ffmpeg_downscale_to_original</code> on the CLI. </li>
 </ul>
 
 # Hardware/Software Requirements
@@ -152,6 +155,36 @@ git clone --recurse-submodules https://github.com/TNTwise/REAL-Video-Enhancer --
 
 ```
 python3 build.py --build BUILD_OPTION --copy_backend
+```
+
+# CLI Usage (Backend)
+
+The backend can be used directly from the command line for advanced use cases:
+
+```bash
+# Standard video input/output
+python3 backend/rve-backend.py -i input.mp4 -o output.mp4 --upscale_model /path/to/model.pth
+
+# PNG sequence input (numbered frames, e.g. frame0001.png, frame0002.png, ...)
+python3 backend/rve-backend.py \
+  -i /path/to/frames/frame%04d.png \
+  --input_is_png_sequence \
+  --input_png_sequence_start_number 1 \
+  -o output.mp4 \
+  --upscale_model /path/to/model.pth
+
+# PNG sequence output (saves each frame as a numbered PNG)
+python3 backend/rve-backend.py \
+  -i input.mp4 \
+  -o /path/to/output/frame%08d.png \
+  --upscale_model /path/to/model.pth
+
+# Upscale then downscale back to original resolution via ffmpeg -vf scale
+python3 backend/rve-backend.py \
+  -i input.mp4 \
+  -o output.mp4 \
+  --upscale_model /path/to/model.pth \
+  --ffmpeg_downscale_to_original
 ```
 
 # Colab Notebook
