@@ -1,12 +1,8 @@
 import queue
-import sys
 from abc import ABC, abstractmethod
 import os
 import subprocess
-import queue
 import time
-import cv2
-import numpy as np
 
 from .utils.Util import (
     log,
@@ -128,6 +124,8 @@ class FFmpegRead(Buffer):
             return None
 
         if self.yuv420pMOD:
+            import cv2
+            import numpy as np
             # Convert raw YUV420p data to RGB
             # The data is Y plane, then U plane, then V plane, concatenated.
             # cv2.COLOR_YUV420P2RGB expects a single channel image of shape (height * 3 // 2, width)
@@ -136,7 +134,6 @@ class FFmpegRead(Buffer):
             yuv_image_height = self.height * 3 // 2
             yuv_image = np_frame.reshape((yuv_image_height, self.width))
             rgb_image = cv2.cvtColor(yuv_image, cv2.COLOR_YUV2RGB_I420)
-            # cv2.imwrite("temp_rgb_image.png", rgb_image)  # Debugging line, can be removed
             chunk = rgb_image.tobytes()
         
         return chunk

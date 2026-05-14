@@ -38,12 +38,27 @@ jobs:
           echo "Got: event=$event ref=$ref"
           exit 1
 
-  build-Linux:
+  test:
     needs: [validate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test dependencies
+        run: pip install pytest
+      - name: Run backend unit tests
+        working-directory: backend
+        run: python -m pytest tests/unit_tests/ -v
+
+  build-Linux:
+    needs: [validate, test]
     runs-on: ubuntu-latest
     permissions: write-all  
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Setup Distrobox
         run : |
@@ -89,11 +104,11 @@ jobs:
           path: backend-v${{ env.APP_VERSION }}.tar.gz 
 
   build-Linux_arm64:
-    needs: [validate]
+    needs: [validate, test]
     runs-on: ubuntu-24.04-arm
     permissions: write-all  
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install Python in distrobox
         run : |
@@ -129,11 +144,11 @@ jobs:
 
           
   build-Windows:
-    needs: [validate]
+    needs: [validate, test]
     runs-on: windows-2022
     permissions: write-all  
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -173,12 +188,12 @@ jobs:
           path: REAL-Video-Enhancer-${{ env.APP_VERSION }}-Windows-Setup_x86_64.exe
 
   build-MacOS_x86_64:
-    needs: [validate]
+    needs: [validate, test]
     runs-on: macos-13
     permissions: write-all  
     steps:
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -208,12 +223,12 @@ jobs:
           path: REAL-Video-Enhancer-${{ env.APP_VERSION }}-MacOS_x86_64.zip
 
   build-MacOS_arm64:
-    needs: [validate]
+    needs: [validate, test]
     runs-on: macos-14
 
     permissions: write-all  
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Python
 
@@ -249,7 +264,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -272,6 +287,7 @@ jobs:
       #    done
 
       - name: Download flatpakref
+        continue-on-error: true
         run: |
           wget https://dl.flathub.org/repo/appstream/io.github.tntwise.REAL-Video-Enhancer.flatpakref
           
