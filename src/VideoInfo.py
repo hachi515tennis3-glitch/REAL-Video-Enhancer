@@ -128,10 +128,12 @@ class VideoLoader:
     def loadVideo(self):
         self.ffmpeg_info = RVEBackendWrapper(self.inputFile)
 
-    def isValidVideo(self):
+    def isValidVideo(self, allow_png_sequence: bool = False):
         try:
             disabled_extensions = ["txt", "jpg", "jpeg", "png", "bmp", "webp"]
             file_extension = self.inputFile.split(".")[-1].lower()
+            if allow_png_sequence and file_extension == "png" and "%" in self.inputFile:
+                return self.ffmpeg_info.get_total_frames() > 1
             return self.ffmpeg_info.get_total_frames() > 1 and \
                     file_extension not in disabled_extensions
         except Exception as e:

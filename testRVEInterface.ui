@@ -1161,8 +1161,8 @@ background-color:#343b47
                                        </property>
                                       </widget>
                                      </item>
-                                     <item>
-                                      <widget class="QPushButton" name="batchSelectButton">
+                                      <item>
+                                       <widget class="QPushButton" name="batchSelectButton">
                                        <property name="minimumSize">
                                         <size>
                                          <width>0</width>
@@ -1183,14 +1183,38 @@ background-color:#343b47
                                        <property name="styleSheet">
                                         <string notr="true"/>
                                        </property>
-                                       <property name="text">
-                                        <string>Batch Select</string>
-                                       </property>
-                                      </widget>
-                                     </item>
-                                    </layout>
-                                   </widget>
-                                  </item>
+                                        <property name="text">
+                                         <string>Batch Select</string>
+                                        </property>
+                                       </widget>
+                                      </item>
+                                      <item>
+                                       <widget class="QPushButton" name="pngSequenceSelectButton">
+                                        <property name="minimumSize">
+                                         <size>
+                                          <width>0</width>
+                                          <height>30</height>
+                                         </size>
+                                        </property>
+                                        <property name="maximumSize">
+                                         <size>
+                                          <width>16777215</width>
+                                          <height>30</height>
+                                         </size>
+                                        </property>
+                                        <property name="font">
+                                         <font>
+                                          <pointsize>12</pointsize>
+                                         </font>
+                                        </property>
+                                        <property name="text">
+                                         <string>PNG Sequence Folder</string>
+                                        </property>
+                                       </widget>
+                                      </item>
+                                     </layout>
+                                    </widget>
+                                   </item>
                                   <item>
                                    <widget class="QLineEdit" name="inputFileText">
                                     <property name="sizePolicy">
@@ -2228,6 +2252,21 @@ background-color:#343b47
                                    </widget>
                                   </item>
                                   <item>
+                                   <widget class="QCheckBox" name="ffmpegDownscaleTo1xCheckBox">
+                                    <property name="font">
+                                     <font>
+                                      <pointsize>12</pointsize>
+                                     </font>
+                                    </property>
+                                    <property name="toolTip">
+                                     <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;FFmpeg Downscale to 1x:&lt;/span&gt;&lt;/p&gt;&lt;p&gt;After AI upscaling, ffmpeg will downscale encoded output back to the original input resolution.&lt;/p&gt;&lt;p&gt;Useful when you want AI restoration quality but final 1x output size.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                                    </property>
+                                    <property name="text">
+                                     <string>FFmpeg Downscale Output to 1x</string>
+                                    </property>
+                                   </widget>
+                                  </item>
+                                  <item>
                                    <widget class="QWidget" name="widget_25" native="true">
                                     <layout class="QHBoxLayout" name="horizontalLayout_40">
                                      <property name="spacing">
@@ -2898,6 +2937,11 @@ li.checked::marker { content: &quot;\2612&quot;; }
                                           <item>
                                            <property name="text">
                                             <string>avi</string>
+                                           </property>
+                                          </item>
+                                          <item>
+                                           <property name="text">
+                                            <string>png</string>
                                            </property>
                                           </item>
                                          </widget>

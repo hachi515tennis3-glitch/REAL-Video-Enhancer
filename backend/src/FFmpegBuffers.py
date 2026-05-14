@@ -41,6 +41,8 @@ class FFmpegRead(Buffer):
             color_transfer=None, 
             input_pixel_format: str | None = None,
             ffmpeg_path: str = "./bin/ffmpeg",
+            input_is_png_sequence: bool = False,
+            input_png_sequence_start_number: int = 1,
         ):
         
         self.inputFile = inputFile
@@ -61,6 +63,8 @@ class FFmpegRead(Buffer):
         self.input_pixel_format = input_pixel_format
         self.yuv420pMOD = self.input_pixel_format == "yuv420p" and not self.hdr_mode
         self.ffmpeg_path = ffmpeg_path
+        self.input_is_png_sequence = input_is_png_sequence
+        self.input_png_sequence_start_number = input_png_sequence_start_number
         #self.yuv420pMOD = False
         if self.hdr_mode:
             self.inputFrameChunkSize = width * height * 6
@@ -82,6 +86,15 @@ class FFmpegRead(Buffer):
         
         command = [
             f"{self.ffmpeg_path}",
+        ]
+        if self.input_is_png_sequence:
+            command += [
+                "-framerate",
+                "25",
+                "-start_number",
+                f"{self.input_png_sequence_start_number}",
+            ]
+        command += [
             "-i",
             f"{self.inputFile}",
         ]
@@ -177,6 +190,7 @@ class FFmpegWrite(Buffer):
         color_transfer: str = None,
         ffmpeg_path: str = "./bin/ffmpeg",
         ffmpeg_log_file: str = "ffmpeg_log.txt",
+        ffmpeg_downscale_to_original: bool = False,
     ):
         self.inputFile = inputFile
         self.outputFile = outputFile
@@ -214,6 +228,7 @@ class FFmpegWrite(Buffer):
         self.color_transfer = color_transfer
         self.ffmpeg_path = ffmpeg_path
         self.ffmpeg_log_file = ffmpeg_log_file
+        self.ffmpeg_downscale_to_original = ffmpeg_downscale_to_original
         self.outputFPS = (
             (self.fps * self.interpolateFactor)
             if not self.slowmo_mode
@@ -320,7 +335,7 @@ class FFmpegWrite(Buffer):
                 f"{self.outputFPS}",
             ]
 
-            if not self.slowmo_mode:
+            if not self.slowmo_mode and self.outputFileExtension.lower() != "png":
                 command += [
                     # Input 1: original file for audio/subtitles.
                     # Put timestamp hygiene flags *before* the input they apply to.
@@ -350,7 +365,18 @@ class FFmpegWrite(Buffer):
 
                 
 
-            if self.custom_encoder is not None:
+            if self.outputFileExtension.lower() == "png":
+                if self.ffmpeg_downscale_to_original:
+                    command += [
+                        "-vf",
+                        f"scale={self.width}:{self.height}",
+                    ]
+                command += [
+                    "-f",
+                    "image2",
+                    self.outputFile,
+                ]
+            elif self.custom_encoder is not None:
 
                 for i in self.custom_encoder.split():
                     command.append(i)
@@ -399,6 +425,11 @@ class FFmpegWrite(Buffer):
                     self.pixelFormat,
 
                 ]
+                if self.ffmpeg_downscale_to_original:
+                    command += [
+                        "-vf",
+                        f"scale={self.width}:{self.height}",
+                    ]
 
                 # MP4/MOV: improve seekability by moving the moov atom to the front.
                 if self.outputFile and self.outputFileExtension.lower() in ("mp4", "mov", "m4v"):
@@ -406,9 +437,10 @@ class FFmpegWrite(Buffer):
                         "-movflags",
                         "+faststart",
                     ]
-            command +=[
-                f"{self.outputFile}",
-            ]
+            if self.outputFileExtension.lower() != "png":
+                command +=[
+                    f"{self.outputFile}",
+                ]
 
             if self.overwrite:
                 command.append("-y")

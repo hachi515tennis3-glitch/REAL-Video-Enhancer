@@ -8,6 +8,7 @@ except:
 import sys
 import os
 import time
+import re
 os.environ["PYTHONNOUSERSITE"] = "1" # Prevents python from installing packages in user site
 os.environ["PYTHONIOENCODING"] = "utf-8"
 os.environ["NVIDIA_TENSORRT_DISABLE_INTERNAL_PIP"] = "0"
@@ -106,6 +107,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.anyBackendsInstalled = True
         self.videoLength = 1
         self.batchVideos = []
+        self.renderInputFile = ""
+        self.inputIsPNGSequence = False
+        self.inputPNGSequenceStartNumber = 1
 
 
         settings = Settings()
@@ -363,7 +367,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             upscaleModelName = self.upscaleModelComboBox.currentText()
             interpolateModelName = self.interpolateModelComboBox.currentText()
             interpolateTimes = self.getInterpolationMultiplier(interpolateModelName)
-            scale = self.getUpscaleModelScale(upscaleModelName)
+            scale = self.getDisplayedOutputScale(upscaleModelName)
             new_bitrate = 8 if "10" not in self.settingsTab.in_pix_fmt else 10
             inputText = (
                 f"FPS: {round(self.videoFps, 0)} -> {round(self.videoFps * interpolateTimes, 0) if not self.sloMoModeCheckBox.isChecked() else round(self.videoFps, 0)}\n"
@@ -393,6 +397,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         else:
             scale = int(self.upscaleScaleSpinBox.value())
         return scale
+    
+    def getDisplayedOutputScale(self, upscaleModelName):
+        scale = self.getUpscaleModelScale(upscaleModelName)
+        if self.ffmpegDownscaleTo1xCheckBox.isChecked() and self.upscaleCheckBox.isChecked():
+            return 1
+        return scale
 
     def setDefaultOutputFile(self, inputFile, outputDirectory):
         """
@@ -414,7 +424,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             interpolateModelName = self.interpolateModelComboBox.currentText()
             
             interpolateTimes = self.getInterpolationMultiplier(interpolateModelName) if not self.sloMoModeCheckBox.isChecked() else 1
-            scale = self.getUpscaleModelScale(upscaleModelName)
+            scale = self.getDisplayedOutputScale(upscaleModelName)
             container = self.settings.settings["video_container"]
 
             file_name = os.path.splitext(os.path.basename(inputFile))[0]
@@ -429,14 +439,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             )
             output_file = os.path.join(
                 outputDirectory,
-                f"{base_file_name}.{container}",
+                f"{base_file_name}.%08d.png" if container == "png" else f"{base_file_name}.{container}",
             )
+            output_file_check = output_file.replace("%08d", "00000001")
             iteration = 0
-            while os.path.isfile(output_file):
+            while os.path.isfile(output_file_check):
                 output_file = os.path.join(
                     outputDirectory,
-                    f"{base_file_name}_({iteration}).{container}",
+                    f"{base_file_name}_({iteration}).%08d.png" if container == "png" else f"{base_file_name}_({iteration}).{container}",
                 )
+                output_file_check = output_file.replace("%08d", "00000001")
                 iteration += 1
             self.outputFileText.setText(output_file)
             return output_file
@@ -461,6 +473,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # set interpolation container visible if interpolate model is not none
         self.upscaleContainer.setVisible(isUpscale or isDeblur or isDenoise or isDecompress)
         self.generalUpscaleContainer.setVisible(isUpscale)
+        self.ffmpegDownscaleTo1xCheckBox.setEnabled(isUpscale)
+        if not isUpscale:
+            self.ffmpegDownscaleTo1xCheckBox.setChecked(False)
         self.settings.readSettings()
         self.setDefaultOutputFile(self.inputFileText.text(), str(os.path.dirname(self.inputFileText.text())) if (self.settings.settings["use_same_output_folder_as_input_file_enabled"] == "True" and self.isVideoLoaded and len(self.batchVideos) == 0 and os.path.exists(os.path.dirname(self.inputFileText.text()))) else self.settings.settings["output_folder_location"])
         self.updateVideoGUIText()
@@ -481,7 +496,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         denoise = self.denoiseModelComboBox.currentText()
         decompress = self.decompressModelComboBox.currentText()
         scene_detect_method = self.scene_change_detection_method.currentText()
-        input_file = self.inputFileText.text() if input_file is None else input_file
+        input_file = self.renderInputFile if input_file is None else input_file
         output_path = self.outputFileText.text() if output_path is None else output_path
         interpolateModelFile = None
         upscaleModelFile = None
@@ -637,6 +652,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             hdrMode=hdrmode,
             overrideUpscaleScale=upscaleTimes,
             encoderCommand=self.EncoderCommand.text(),
+            inputIsPNGSequence=self.inputIsPNGSequence,
+            inputPNGSequenceStartNumber=self.inputPNGSequenceStartNumber,
+            ffmpegDownscaleTo1x=self.ffmpegDownscaleTo1xCheckBox.isChecked() and self.upscaleCheckBox.isChecked(),
         )
 
     def addToRenderQueue(self):
@@ -746,13 +764,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.RenderedPreviewControlsContainer.setEnabled(True)
         self.scrollAreaWidgetContents_4.setEnabled(True)
 
-    def loadVideo(self, inputFile, multi_file=False):
+    def loadVideo(self, inputFile, multi_file=False, is_png_sequence=False, png_sequence_start_number=1):
+        if "%0" in inputFile and inputFile.lower().endswith(".png"):
+            is_png_sequence = True
         if "{MULTIPLE_FILES}" in inputFile.strip().replace(" ", ""):
             return
         if inputFile == "":
-            NotificationOverlay("Please select a video file!", self, timeout=1500)
+            NotificationOverlay("Please select a video file or PNG sequence!", self, timeout=1500)
             return
         if multi_file:
+            self.inputIsPNGSequence = False
+            self.inputPNGSequenceStartNumber = 1
             self.outputFileText.setEnabled(False)
             for file in os.listdir(inputFile):
                 video = os.path.join(inputFile, file)
@@ -778,12 +800,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.pixelFMT = "Multi File"
             self.videoHDR = "Multi File"
             self.videoBitDepth = "Multi File"
+            self.renderInputFile = inputFile
         else:
                     
             videoHandler = VideoLoader(inputFile)
             videoHandler.loadVideo()
             if (
-                not videoHandler.isValidVideo()
+                not videoHandler.isValidVideo(allow_png_sequence=is_png_sequence)
             ):  # this handles case for invalid youtube link and invalid video file
                 NotificationOverlay("Not a valid input!", self, timeout=1500)
                 return
@@ -800,7 +823,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.pixelFMT = videoHandler.pixel_format
             self.videoHDR = videoHandler.is_hdr
             self.videoBitDepth = videoHandler.bit_depth
-
+            self.inputIsPNGSequence = is_png_sequence
+            self.inputPNGSequenceStartNumber = png_sequence_start_number if is_png_sequence else 1
+            self.renderInputFile = inputFile
             self.inputFileText.setText(inputFile)
             self.outputFileText.setEnabled(True)
 
@@ -833,6 +858,38 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         )
         self.loadVideo(inputFile)
         self.settings.writeSetting("last_input_folder_location", str(os.path.dirname(inputFile)))
+    
+    def _detect_png_sequence_pattern(self, inputFolder):
+        png_files = sorted(
+            [file for file in os.listdir(inputFolder) if file.lower().endswith(".png")]
+        )
+        if len(png_files) < 2:
+            return None, None
+        for file_name in png_files:
+            match = re.match(r"^(.*?)(\d+)\.png$", file_name, re.IGNORECASE)
+            if match:
+                prefix = match.group(1)
+                number = match.group(2)
+                digits = len(number)
+                start_number = int(number)
+                pattern = os.path.join(inputFolder, f"{prefix}%0{digits}d.png")
+                return pattern, start_number
+        return None, None
+    
+    def openPNGSequenceFolder(self):
+        inputFolder = QFileDialog.getExistingDirectory(
+            self,
+            caption="Select PNG Sequence Directory",
+            dir=self.settings.settings["last_input_folder_location"] if os.path.exists(self.settings.settings["last_input_folder_location"]) else self.homeDir,
+        )
+        if inputFolder == "":
+            return
+        pattern, start_number = self._detect_png_sequence_pattern(inputFolder)
+        if not pattern:
+            NotificationOverlay("No sequential PNG files found in the selected folder!", self, timeout=2000)
+            return
+        self.loadVideo(pattern, is_png_sequence=True, png_sequence_start_number=start_number)
+        self.settings.writeSetting("last_input_folder_location", str(inputFolder))
     
     def openBatchFiles(self):
         inputFolder = QFileDialog.getExistingDirectory(

@@ -97,6 +97,9 @@ class Render:
         trt_optimization_level: int = 3,
         trt_dynamic_shapes: bool = False,
         override_upscale_scale: int | None = None,
+        ffmpeg_downscale_to_original: bool = False,
+        input_is_png_sequence: bool = False,
+        input_png_sequence_start_number: int = 1,
         UHD_mode: bool = False,
         slomo_mode: bool = False,
         dynamic_scaled_optical_flow: bool = False,
@@ -136,6 +139,9 @@ class Render:
         self.outputFrameChunkSize = None
         self.hdr_mode = hdr_mode
         self.override_upscale_scale = override_upscale_scale
+        self.ffmpeg_downscale_to_original = ffmpeg_downscale_to_original
+        self.input_is_png_sequence = input_is_png_sequence
+        self.input_png_sequence_start_number = input_png_sequence_start_number
         self.trt_dynamic_shapes = trt_dynamic_shapes
         self.extraRestorationModels = []
         
@@ -144,7 +150,14 @@ class Render:
         else:
             cwd = os.getcwd()
             log("No Working Directory specified, using current directory: " + cwd)
-        videoInfo = OpenCVInfo(input_file=inputFile, start_time=start_time, end_time=end_time, ffmpeg_path=ffmpeg_path)
+        videoInfo = OpenCVInfo(
+            input_file=inputFile,
+            start_time=start_time,
+            end_time=end_time,
+            ffmpeg_path=ffmpeg_path,
+            input_is_png_sequence=input_is_png_sequence,
+            input_png_sequence_start_number=input_png_sequence_start_number,
+        )
         
         if not videoInfo.is_valid_video:
             log("Input video is not valid!")
@@ -243,6 +256,8 @@ class Render:
             color_transfer=color_transfer,
             input_pixel_format=input_pix_fmt,
             ffmpeg_path=ffmpeg_path,
+            input_is_png_sequence=input_is_png_sequence,
+            input_png_sequence_start_number=input_png_sequence_start_number,
         )
 
         self.writeBuffer = FFmpegWrite(
@@ -274,6 +289,7 @@ class Render:
             color_transfer=color_transfer,
             ffmpeg_path=ffmpeg_path,
             ffmpeg_log_file=os.path.join(cwd, "ffmpeg_log.txt"),
+            ffmpeg_downscale_to_original=ffmpeg_downscale_to_original,
         )
 
         shm_mul = self.override_upscale_scale if self.override_upscale_scale else self.upscaleTimes
