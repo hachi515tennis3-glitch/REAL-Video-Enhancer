@@ -780,7 +780,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             return None
 
         file_regex = re.compile(
-            rf"^{re.escape(file_prefix)}(\d{{{int(digits)}}}){re.escape(suffix)}$",
+            rf"^{re.escape(file_prefix)}(\d{{{digits}}}){re.escape(suffix)}$",
             re.IGNORECASE,
         )
         start_numbers = []

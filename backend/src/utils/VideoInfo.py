@@ -293,7 +293,7 @@ class OpenCVInfo(VideoInfo):
         if not os.path.isdir(directory):
             return 0
         file_regex = re.compile(
-            rf"^{re.escape(file_prefix)}(\d{{{int(digits)}}}){re.escape(suffix)}$",
+            rf"^{re.escape(file_prefix)}(\d{{{digits}}}){re.escape(suffix)}$",
             re.IGNORECASE,
         )
         count = 0
