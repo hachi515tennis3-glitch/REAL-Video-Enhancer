@@ -428,9 +428,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             container = self.settings.settings["video_container"]
 
             file_name = os.path.splitext(os.path.basename(inputFile))[0]
-            file_name = re.sub(r"%0\d+d", "", file_name).rstrip(" _-")
+            file_name = re.sub(r"%0?\d*d", "", file_name).rstrip(" _-")
             if file_name == "":
-                file_name = "sequence"
+                file_name = "output_sequence"
             base_file_name = (
                 f"{file_name}"
                 + ("" if not self.interpolateCheckBox.isChecked() else f"_{getModelDisplayName(interpolateModelName)}")
