@@ -159,7 +159,7 @@ class Render:
             input_png_sequence_start_number=input_png_sequence_start_number,
         )
         
-        if not videoInfo.is_valid_video:
+        if not videoInfo.is_valid_video():
             log("Input video is not valid!")
         
         if start_time is None:

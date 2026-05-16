@@ -97,26 +97,42 @@ class VideoInfo(ABC):
     def get_bit_depth(self) -> int: ...
 
 class FFMpegInfoWrapper(VideoInfo):
-    def __init__(self, input_file: str, ffmpeg_path: str = "./bin/ffmpeg"):
+    def __init__(
+        self,
+        input_file: str,
+        ffmpeg_path: str = "./bin/ffmpeg",
+        input_is_png_sequence: bool = False,
+        input_png_sequence_start_number: int = 1,
+    ):
         self.input_file = input_file
         self.ffmpeg_path = ffmpeg_path
+        self.input_is_png_sequence = input_is_png_sequence
+        self.input_png_sequence_start_number = input_png_sequence_start_number
         self.stream_line = None
         self.stream_line_2 = None
         self._get_ffmpeg_info()
 
     def _get_ffmpeg_info(self):
-        command = [
-                self.ffmpeg_path,
-                "-i",
-                self.input_file,
-                "-t",
-                "00:00:00",
+        null_device = "NUL" if os.name == "nt" else "/dev/null"
+        command = [self.ffmpeg_path]
+        if self.input_is_png_sequence:
+            command += [
                 "-f",
-                "null",
-                "/dev/null",
-                "-hide_banner",
-                
-                
+                "image2",
+                "-framerate",
+                "25",
+                "-start_number",
+                str(self.input_png_sequence_start_number),
+            ]
+        command += [
+            "-i",
+            self.input_file,
+            "-t",
+            "00:00:00",
+            "-f",
+            "null",
+            null_device,
+            "-hide_banner",
         ]
 
         self.ffmpeg_output_raw:str = subprocess_popen_without_terminal(command,  stderr=subprocess.PIPE, errors="replace").stderr.read()
@@ -156,7 +172,10 @@ class FFMpegInfoWrapper(VideoInfo):
         return int(self.get_duration_seconds() * self.get_fps())
 
     def get_width_x_height(self) -> List[int]:
-        width, height = re.search(r"video:.* (\d+)x(\d+)",self.ffmpeg_output_stripped).groups()[:2]
+        match = re.search(r"video:.* (\d+)x(\d+)", self.ffmpeg_output_stripped)
+        if not match:
+            return [0, 0]
+        width, height = match.groups()[:2]
         return [int(width), int(height)]
 
     def get_fps(self) -> float:
@@ -253,24 +272,33 @@ class OpenCVInfo(VideoInfo):
         self.input_is_png_sequence = input_is_png_sequence
         self.input_png_sequence_start_number = input_png_sequence_start_number
         self.cap = None if input_is_png_sequence else cv2.VideoCapture(input_file)
-        self.ffmpeg_info = FFMpegInfoWrapper(input_file, ffmpeg_path=ffmpeg_path)
+        self.ffmpeg_info = FFMpegInfoWrapper(
+            input_file,
+            ffmpeg_path=ffmpeg_path,
+            input_is_png_sequence=input_is_png_sequence,
+            input_png_sequence_start_number=input_png_sequence_start_number,
+        )
         self.png_sequence_total_frames = self._count_png_sequence_frames() if input_is_png_sequence else None
         if input_is_png_sequence:
             fallback_frames = int(self.ffmpeg_info.get_total_frames())
             self.base_total_frames = self.png_sequence_total_frames if self.png_sequence_total_frames and self.png_sequence_total_frames > 0 else fallback_frames
 
     def _count_png_sequence_frames(self) -> int:
-        pattern = re.search(r"(.*)%0\d+d(.+)$", self.input_file)
+        pattern = re.search(r"(.*)%0(\d+)d(.+)$", self.input_file)
         if not pattern:
             return 0
-        prefix, suffix = pattern.groups()
+        prefix, digits, suffix = pattern.groups()
         directory = os.path.dirname(prefix)
         file_prefix = os.path.basename(prefix)
         if not os.path.isdir(directory):
             return 0
+        file_regex = re.compile(
+            rf"^{re.escape(file_prefix)}(\d{{{digits}}}){re.escape(suffix)}$",
+            re.IGNORECASE,
+        )
         count = 0
         for file_name in os.listdir(directory):
-            if file_name.lower().endswith(".png") and file_name.startswith(file_prefix) and file_name.endswith(suffix):
+            if file_regex.match(file_name):
                 count += 1
         return count
 
