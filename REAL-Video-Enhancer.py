@@ -428,6 +428,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             container = self.settings.settings["video_container"]
 
             file_name = os.path.splitext(os.path.basename(inputFile))[0]
+            file_name = re.sub(r"%0\d+d", "", file_name).rstrip(" _-")
+            if file_name == "":
+                file_name = "sequence"
             base_file_name = (
                 f"{file_name}"
                 + ("" if not self.interpolateCheckBox.isChecked() else f"_{getModelDisplayName(interpolateModelName)}")
@@ -764,9 +767,36 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.RenderedPreviewControlsContainer.setEnabled(True)
         self.scrollAreaWidgetContents_4.setEnabled(True)
 
-    def loadVideo(self, inputFile, multi_file=False, is_png_sequence=False, png_sequence_start_number=1):
+    def _get_png_sequence_start_number_from_pattern(self, inputFile):
+        if not inputFile or "%" not in inputFile or not inputFile.lower().endswith(".png"):
+            return None
+        pattern_match = re.search(r"(.*)%0(\d+)d(.+)$", inputFile)
+        if not pattern_match:
+            return None
+        prefix, digits, suffix = pattern_match.groups()
+        directory = os.path.dirname(prefix)
+        file_prefix = os.path.basename(prefix)
+        if not os.path.isdir(directory):
+            return None
+
+        file_regex = re.compile(
+            rf"^{re.escape(file_prefix)}(\d{{{int(digits)}}}){re.escape(suffix)}$",
+            re.IGNORECASE,
+        )
+        start_numbers = []
+        for file_name in os.listdir(directory):
+            match = file_regex.match(file_name)
+            if match:
+                start_numbers.append(int(match.group(1)))
+        return min(start_numbers) if start_numbers else None
+
+    def loadVideo(self, inputFile, multi_file=False, is_png_sequence=False, png_sequence_start_number=None):
         if "%0" in inputFile and inputFile.lower().endswith(".png"):
             is_png_sequence = True
+        if is_png_sequence and png_sequence_start_number is None:
+            png_sequence_start_number = self._get_png_sequence_start_number_from_pattern(inputFile)
+        if png_sequence_start_number is None:
+            png_sequence_start_number = 1
         if "{MULTIPLE_FILES}" in inputFile.strip().replace(" ", ""):
             return
         if inputFile == "":
@@ -786,7 +816,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 NotificationOverlay("No valid videos found in the selected folder!", self, timeout=1500)
                 return
             NotificationOverlay("Loaded " + str(len(self.batchVideos)) + " videos.", self, timeout=1500)
+            self.inputFileText.blockSignals(True)
             self.inputFileText.setText(" { MULTIPLE_FILES } ")
+            self.inputFileText.blockSignals(False)
             self.inputFileText.setEnabled(False)
             self.videoWidth = 0
             self.videoHeight = 0
@@ -803,7 +835,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.renderInputFile = inputFile
         else:
                     
-            videoHandler = VideoLoader(inputFile)
+            videoHandler = VideoLoader(
+                inputFile,
+                png_sequence_start_number=png_sequence_start_number,
+                input_is_png_sequence=is_png_sequence,
+            )
             videoHandler.loadVideo()
             if (
                 not videoHandler.isValidVideo(allow_png_sequence=is_png_sequence)
@@ -826,7 +862,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.inputIsPNGSequence = is_png_sequence
             self.inputPNGSequenceStartNumber = png_sequence_start_number if is_png_sequence else 1
             self.renderInputFile = inputFile
+            self.inputFileText.blockSignals(True)
             self.inputFileText.setText(inputFile)
+            self.inputFileText.blockSignals(False)
             self.outputFileText.setEnabled(True)
 
         self.outputFileSelectButton.setEnabled(True)

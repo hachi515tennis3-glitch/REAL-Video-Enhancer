@@ -4,8 +4,10 @@ import os
 from .constants import FFMPEG_PATH
 
 class RVEBackendWrapper:
-    def __init__(self, input_file: str):
+    def __init__(self, input_file: str, png_sequence_start_number: int = 1, input_is_png_sequence: bool = False):
         self.input_file = input_file
+        self.png_sequence_start_number = png_sequence_start_number
+        self.input_is_png_sequence = input_is_png_sequence
         self._get_ffmpeg_info()
 
     def _get_ffmpeg_info(self):
@@ -20,6 +22,12 @@ class RVEBackendWrapper:
             "--ffmpeg_path",
             f"{FFMPEG_PATH}",
         ]
+        if self.input_is_png_sequence:
+            command += [
+                "--input_is_png_sequence",
+                "--input_png_sequence_start_number",
+                f"{self.png_sequence_start_number}",
+            ]
 
         result = subprocess_popen_without_terminal(command, stderr=subprocess.PIPE, stdout=subprocess.PIPE, errors="replace")
         stderr_output = result.stderr.read().strip()
@@ -122,11 +130,17 @@ class RVEBackendWrapper:
     
 
 class VideoLoader:
-    def __init__(self, inputFile):
+    def __init__(self, inputFile, png_sequence_start_number: int = 1, input_is_png_sequence: bool | None = None):
         self.inputFile = inputFile
+        self.png_sequence_start_number = png_sequence_start_number
+        self.input_is_png_sequence = ("%" in inputFile and inputFile.lower().endswith(".png")) if input_is_png_sequence is None else input_is_png_sequence
 
     def loadVideo(self):
-        self.ffmpeg_info = RVEBackendWrapper(self.inputFile)
+        self.ffmpeg_info = RVEBackendWrapper(
+            self.inputFile,
+            png_sequence_start_number=self.png_sequence_start_number,
+            input_is_png_sequence=self.input_is_png_sequence,
+        )
 
     def isValidVideo(self, allow_png_sequence: bool = False):
         try:
@@ -148,7 +162,7 @@ class VideoLoader:
        
         self.fps = self.ffmpeg_info.get_fps()
         self.total_frames = int(self.ffmpeg_info.get_total_frames())
-        self.duration = self.total_frames / self.fps
+        self.duration = self.total_frames / self.fps if self.fps else 0
         self.color_space = self.ffmpeg_info.get_color_space()
         self.color_transfer = self.ffmpeg_info.get_color_transfer()
         self.color_primaries = self.ffmpeg_info.get_color_primaries()
